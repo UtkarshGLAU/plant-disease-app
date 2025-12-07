@@ -1,0 +1,14 @@
+# Ignore Frontend Junk
+frontend/node_modules/
+frontend/build/
+.DS_Store
+
+# Ignore Backend Junk
+backend/__pycache__/
+backend/venv/
+*.pyc
+
+# ⚠️ Ignore Heavy Model Files (Too big for GitHub)
+model/*.h5
+model/*.keras
+model/*.savedmodel
