@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        
+        video {
+            width: 100%;
+            max-width: 500px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>📷 Camera Permission Test</h1>
+    
+    <div id="status" class="status info">
+        Click "Test Camera" to check permissions
+    </div>
+    
+    <div class="status error" id="firefoxWarning" style="display: none;">
+        <strong>🦊 Firefox Mobile Detected:</strong><br>
+        Firefox Mobile requires HTTPS for camera access. The MediaDevices API is not available over HTTP.<br>
+        <strong>Solution:</strong> Access this page via HTTPS (https://[your-ip]:3000)
+    </div>
+    
+    <div class="status info" id="httpsInfo" style="display: none;">
+        <strong>📡 HTTP Connection Detected:</strong><br>
+        Most mobile browsers require HTTPS for camera access.<br>
+        <strong>Recommendation:</strong> Use HTTPS for full camera compatibility.
+    </div>
+    
+    <div>
+        <button onclick="testCamera()">Test Camera</button>
+        <button onclick="stopCamera()">Stop Camera</button>
+    </div>
+    
+    <div>
+        <video id="video" style="display: none;" autoplay playsinline muted></video>
+    </div>
+    
+    <div id="info">
+        <h3>Browser Information:</h3>
+        <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
+        <p><strong>Protocol:</strong> <span id="protocol"></span></p>
+        <p><strong>Host:</strong> <span id="host"></span></p>
+        <p><strong>MediaDevices Support:</strong> <span id="mediaSupport"></span></p>
+        <p><strong>getUserMedia Support:</strong> <span id="getUserMediaSupport"></span></p>
+    </div>
+
+    <script>
+        let currentStream = null;
+        
+        // Display browser info
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        document.getElementById('protocol').textContent = window.location.protocol;
+        document.getElementById('host').textContent = window.location.host;
+        document.getElementById('mediaSupport').textContent = !!navigator.mediaDevices ? 'Yes' : 'No';
+        document.getElementById('getUserMediaSupport').textContent = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'Yes' : 'No';
+        
+        // Check for Firefox Mobile and HTTP
+        const isFirefoxMobile = /Firefox.*Mobile/i.test(navigator.userAgent);
+        const isHTTP = window.location.protocol === 'http:';
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (isFirefoxMobile && isHTTP && !isLocalhost) {
+            document.getElementById('firefoxWarning').style.display = 'block';
+        } else if (isHTTP && !isLocalhost) {
+            document.getElementById('httpsInfo').style.display = 'block';
+        }
+        
+        async function testCamera() {
+            const statusDiv = document.getElementById('status');
+            const video = document.getElementById('video');
+            
+            try {
+                statusDiv.className = 'status info';
+                statusDiv.textContent = 'Requesting camera permission...';
+                
+                // Check support first
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera not supported on this browser');
+                }
+                
+                // Request camera access
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ Camera access granted! Video should appear below.';
+                
+                video.srcObject = currentStream;
+                video.style.display = 'block';
+                video.play();
+                
+            } catch (error) {
+                statusDiv.className = 'status error';
+                let message = '❌ Camera access failed: ';
+                
+                if (error.name === 'NotAllowedError') {
+                    message += 'Permission denied. Please allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    message += 'No camera found.';
+                } else if (error.name === 'NotSupportedError') {
+                    message += 'Camera not supported.';
+                } else if (error.name === 'NotReadableError') {
+                    message += 'Camera in use by another app.';
+                } else {
+                    message += error.message;
+                }
+                
+                statusDiv.textContent = message;
+                console.error('Camera error:', error);
+            }
+        }
+        
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                
+                const video = document.getElementById('video');
+                video.srcObject = null;
+                video.style.display = 'none';
+                
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = 'status info';
+                statusDiv.textContent = 'Camera stopped. Click "Test Camera" to try again.';
+            }
+        }
+    </script>
+</body>
+</html>
