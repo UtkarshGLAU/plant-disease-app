@@ -12,3 +12,5 @@ backend/venv/
 model/*.h5
 model/*.keras
 model/*.savedmodel
+
+.env
