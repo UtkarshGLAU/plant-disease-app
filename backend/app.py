@@ -17,7 +17,7 @@ CORS(app)  # Enable CORS for all routes
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load the trained model
-MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'model', 'plant_disease_model.pth')
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'model', 'plantDisease-resnet34.pth')
 
 # Load class indices from JSON file
 CLASS_INDICES_PATH = os.path.join(os.path.dirname(__file__), 'class_indices.json')
@@ -32,8 +32,8 @@ NUM_CLASSES = len(DISEASE_CLASSES)
 def load_model(model_path, num_classes):
     """Load PyTorch model from .pth file"""
     try:
-        # Create a ResNet50 model (adjust architecture if your model uses different backbone)
-        model = models.resnet50(weights=None)
+        # Create a ResNet34 model (matching your plantDisease-resnet34.pth file)
+        model = models.resnet34(weights=None)
         # Modify the final layer to match number of disease classes
         num_ftrs = model.fc.in_features
         model.fc = nn.Linear(num_ftrs, num_classes)
@@ -43,9 +43,20 @@ def load_model(model_path, num_classes):
         
         # Handle different checkpoint formats
         if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
+            state_dict = checkpoint['model_state_dict']
         else:
-            model.load_state_dict(checkpoint)
+            state_dict = checkpoint
+        
+        # Remove 'network.' prefix if present (model was saved with wrapper)
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            if key.startswith('network.'):
+                new_key = key.replace('network.', '')
+                new_state_dict[new_key] = value
+            else:
+                new_state_dict[key] = value
+        
+        model.load_state_dict(new_state_dict)
         
         model = model.to(device)
         model.eval()
