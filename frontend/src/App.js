@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// ✅ NEW: Automatically use the Cloudflare URL if set, otherwise localhost
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Primary API URL with fallback
+const PRIMARY_API_URL = 'http://localhost:5000';
+const FALLBACK_API_URL = 'https://plant-api.utkarshsharma.me';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -15,6 +16,7 @@ function App() {
   const [stream, setStream] = useState(null);
   const [videoReady, setVideoReady] = useState(false);
   const [backendStatus, setBackendStatus] = useState('checking');
+  const [apiUrl, setApiUrl] = useState(PRIMARY_API_URL);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -33,10 +35,10 @@ function App() {
     }
   };
 
-  // ✅ UPDATED: Simple health check using the variable
+  // Health check with fallback logic
   const checkBackendHealth = async () => {
     try {
-      const response = await fetch(`${API_URL}/health`, {
+      const response = await fetch(`${apiUrl}/health`, {
         method: 'GET',
         timeout: 5000
       });
@@ -45,10 +47,31 @@ function App() {
         const data = await response.json();
         setBackendStatus(data.model_loaded ? 'ready' : 'loading');
       } else {
-        setBackendStatus('error');
+        throw new Error('Health check failed');
       }
     } catch (err) {
       console.warn('Backend health check failed:', err);
+      
+      // If using primary URL and it failed, try fallback
+      if (apiUrl === PRIMARY_API_URL) {
+        console.log('Trying fallback API URL...');
+        setApiUrl(FALLBACK_API_URL);
+        try {
+          const fallbackResponse = await fetch(`${FALLBACK_API_URL}/health`, {
+            method: 'GET',
+            timeout: 5000
+          });
+          
+          if (fallbackResponse.ok) {
+            const data = await fallbackResponse.json();
+            setBackendStatus(data.model_loaded ? 'ready' : 'loading');
+            return;
+          }
+        } catch (fallbackErr) {
+          console.warn('Fallback API also failed:', fallbackErr);
+        }
+      }
+      
       setBackendStatus('error');
     }
   };
@@ -155,7 +178,7 @@ function App() {
     }
   };
 
-  // ✅ UPDATED: Upload logic using API_URL variable
+  // Upload logic with fallback
   const handleUpload = async () => {
     if (!selectedFile) {
       setError('Please select an image file first');
@@ -169,7 +192,7 @@ function App() {
     formData.append('image', selectedFile);
 
     try {
-      const response = await axios.post(`${API_URL}/predict`, formData, {
+      const response = await axios.post(`${apiUrl}/predict`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -179,10 +202,32 @@ function App() {
       setPrediction(response.data);
     } catch (err) {
       console.error('Prediction error:', err);
+      
+      // If using primary URL and it failed, try fallback
+      if (apiUrl === PRIMARY_API_URL) {
+        console.log('Retrying with fallback API URL...');
+        setApiUrl(FALLBACK_API_URL);
+        
+        try {
+          const fallbackResponse = await axios.post(`${FALLBACK_API_URL}/predict`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            timeout: 30000,
+          });
+          
+          setPrediction(fallbackResponse.data);
+          setLoading(false);
+          return;
+        } catch (fallbackErr) {
+          console.error('Fallback prediction also failed:', fallbackErr);
+        }
+      }
+      
       let errorMessage = 'An error occurred during prediction. ';
 
       if (err.code === 'NETWORK_ERROR' || err.code === 'ERR_NETWORK') {
-        errorMessage += `Cannot connect to backend server at ${API_URL}.`;
+        errorMessage += `Cannot connect to backend server.`;
       } else {
         errorMessage += err.response?.data?.error || err.message || 'Please try again.';
       }
