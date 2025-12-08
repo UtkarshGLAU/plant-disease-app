@@ -13,5 +13,42 @@ backend/venv/
 model/*.h5
 model/*.keras
 model/*.savedmodel
+model/*.pth
+model/*.pt
+model/*.onnx
 
+# Ignore virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Ignore IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Ignore OS files
+Thumbs.db
+.DS_Store
+
+# Ignore logs and temp files
+*.log
+*.tmp
+*.temp
+*.cache
+__pycache__/
+
+# Ignore .env files
 .env
+.env.local
+
+# Ignore node/npm files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
