@@ -39,7 +39,7 @@ const LoadingOverlay = ({ message }) => (
 );
 
 // Header Component
-const Header = ({ backendStatus }) => (
+const Header = ({ backendStatus, models, selectedModel, onModelChange }) => (
   <header className="header">
     <div className="header-content">
       <div className="logo">
@@ -49,23 +49,45 @@ const Header = ({ backendStatus }) => (
           <span className="logo-badge">AI</span>
         </div>
       </div>
-      <div className="status-badge">
-        <span
-          className={`status-dot ${
-            backendStatus === 'ready'
-              ? 'online'
+      <div className="header-right">
+        {/* Model Selector in Header */}
+        <div className="header-model-selector">
+          <span className="model-icon">🧠</span>
+          <select
+            className="header-model-dropdown"
+            value={selectedModel}
+            onChange={(e) => onModelChange(e.target.value)}
+            disabled={models.length === 0}
+          >
+            {models.length === 0 ? (
+              <option value="">Loading...</option>
+            ) : (
+              models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name} {model.is_default ? '★' : ''}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+        <div className="status-badge">
+          <span
+            className={`status-dot ${
+              backendStatus === 'ready'
+                ? 'online'
+                : backendStatus === 'error'
+                ? 'offline'
+                : 'loading'
+            }`}
+          />
+          <span>
+            {backendStatus === 'ready'
+              ? 'Ready'
               : backendStatus === 'error'
-              ? 'offline'
-              : 'loading'
-          }`}
-        />
-        <span>
-          {backendStatus === 'ready'
-            ? 'AI Model Ready'
-            : backendStatus === 'error'
-            ? 'Offline'
-            : 'Connecting...'}
-        </span>
+              ? 'Offline'
+              : 'Connecting...'}
+          </span>
+        </div>
       </div>
     </div>
   </header>
@@ -200,15 +222,31 @@ const CameraModal = ({ videoRef, onCapture, onClose, videoReady }) => (
 const ResultsCard = ({ result, activeTab, setActiveTab }) => {
   if (!result) return null;
 
-  const { prediction, disease_info, top_predictions } = result;
+  const { prediction, disease_info, top_predictions, metadata, is_uncertain, uncertainty_message } = result;
 
   return (
     <div className="card results-section">
+      {/* Uncertainty Warning */}
+      {is_uncertain && (
+        <div className="uncertainty-warning">
+          <span className="uncertainty-icon">⚠️</span>
+          <div className="uncertainty-content">
+            <strong>Low Confidence Result</strong>
+            <p>{uncertainty_message || "This plant may not be in our training data. Results may be inaccurate."}</p>
+          </div>
+        </div>
+      )}
+
       <div className="card-header">
         <div className="card-icon">🔬</div>
         <div>
           <h2 className="card-title">Analysis Results</h2>
-          <p className="card-subtitle">AI-powered diagnosis</p>
+          <p className="card-subtitle">
+            AI-powered diagnosis
+            {metadata?.model_name && (
+              <span className="model-badge">🧠 {metadata.model_name}</span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -427,6 +465,49 @@ const Footer = () => (
   </footer>
 );
 
+// Model Selector Component
+const ModelSelector = ({ models, selectedModel, onModelChange, disabled }) => (
+  <div className="model-selector">
+    <div className="model-selector-header">
+      <span className="model-icon">🧠</span>
+      <span className="model-label">AI Model</span>
+    </div>
+    <div className="model-dropdown-wrapper">
+      <select
+        className="model-dropdown"
+        value={selectedModel}
+        onChange={(e) => onModelChange(e.target.value)}
+        disabled={disabled || models.length === 0}
+      >
+        {models.length === 0 ? (
+          <option value="">Loading models...</option>
+        ) : (
+          models.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name} {model.is_default ? '(Default)' : ''} - {model.accuracy} accuracy
+            </option>
+          ))
+        )}
+      </select>
+      <span className="dropdown-arrow">▼</span>
+    </div>
+    {selectedModel && models.length > 0 && (
+      <div className="model-info">
+        {(() => {
+          const model = models.find(m => m.id === selectedModel);
+          return model ? (
+            <>
+              <span className="model-architecture">{model.architecture}</span>
+              <span className="model-dot">•</span>
+              <span className="model-classes">{model.num_classes} classes</span>
+            </>
+          ) : null;
+        })()}
+      </div>
+    )}
+  </div>
+);
+
 // Main App Component
 function App() {
   // State
@@ -442,6 +523,8 @@ function App() {
   const [videoReady, setVideoReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
 
   // Refs
   const fileInputRef = useRef(null);
@@ -467,11 +550,37 @@ function App() {
     }
   }, []);
 
+  // Fetch available models
+  const fetchModels = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/models`, {
+        method: 'GET',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.models) {
+          setModels(data.models);
+          // Set default model
+          const defaultModel = data.models.find(m => m.is_default);
+          if (defaultModel) {
+            setSelectedModel(defaultModel.id);
+          } else if (data.models.length > 0) {
+            setSelectedModel(data.models[0].id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch models:', err);
+    }
+  }, []);
+
   useEffect(() => {
     checkBackendHealth();
+    fetchModels();
     const interval = setInterval(checkBackendHealth, 30000);
     return () => clearInterval(interval);
-  }, [checkBackendHealth]);
+  }, [checkBackendHealth, fetchModels]);
 
   // File handling
   const handleFileSelect = (event) => {
@@ -631,6 +740,9 @@ function App() {
 
     const formData = new FormData();
     formData.append('image', selectedFile);
+    if (selectedModel) {
+      formData.append('model', selectedModel);
+    }
 
     try {
       const response = await fetch(`${API_URL}/predict`, {
@@ -662,7 +774,12 @@ function App() {
 
       {loading && <LoadingOverlay message="Analyzing your plant with AI..." />}
 
-      <Header backendStatus={backendStatus} />
+      <Header 
+        backendStatus={backendStatus}
+        models={models}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+      />
 
       <main className="main-content">
         <Hero />
