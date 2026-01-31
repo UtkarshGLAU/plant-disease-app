@@ -43,7 +43,8 @@ PlantGuard AI is a comprehensive plant disease detection system that leverages d
 - ⚡ **Real-time Analysis** - Get results in seconds
 - 💊 **Treatment Recommendations** - Detailed advice for each condition
 - 📱 **Mobile Ready** - Responsive design with camera support
-- 🔬 **ResNet34 Model** - State-of-the-art deep learning architecture
+- 🔬 **Multi-Model Support** - Choose from different AI models (ResNet, VGG, EfficientNet, etc.)
+- 🧠 **Model Selection** - Users can select which model to use for analysis
 
 ---
 
@@ -55,7 +56,8 @@ PlantGuard AI is a comprehensive plant disease detection system that leverages d
 |---------|-------------|
 | 🖼️ **Image Upload** | Drag-and-drop or click-to-upload interface |
 | 📷 **Camera Capture** | Real-time camera integration for mobile devices |
-| 🤖 **AI Analysis** | ResNet34-based deep learning model |
+| 🤖 **AI Analysis** | Multiple deep learning models available |
+| 🧠 **Model Selection** | Choose the AI model that best fits your needs |
 | 📊 **Confidence Scores** | Probability distribution for top predictions |
 | 💡 **Smart Recommendations** | Disease-specific treatment and prevention tips |
 | 🌡️ **Severity Assessment** | Visual severity indicators for each condition |
@@ -309,7 +311,38 @@ GET /stats
 
 ## 🧠 Model Information
 
-### Architecture
+### Multi-Model Support
+
+PlantGuard AI supports multiple deep learning models. Users can select their preferred model from the dropdown before analysis.
+
+#### Supported Architectures
+
+| Model | Description | Best For |
+|-------|-------------|----------|
+| **ResNet34** | Default model, balanced performance | General use |
+| **ResNet50** | Deeper network, higher accuracy | Complex cases |
+| **EfficientNet-B0** | Efficient and accurate | Resource-limited devices |
+| **VGG16** | Classic architecture | Comparison baseline |
+| **MobileNet** | Lightweight model | Mobile devices |
+
+### Adding New Models
+
+To add a new model, update the `MODEL_REGISTRY` in `backend/app.py`:
+
+```python
+MODEL_REGISTRY = {
+    "your-model-id": {
+        "name": "Your Model Name",
+        "path": "model/your-model.pth",
+        "architecture": "resnet34",  # or resnet50, efficientnet, vgg16, etc.
+        "num_classes": 38,
+        "accuracy": 0.94,
+        "is_default": False
+    }
+}
+```
+
+### Default Architecture (ResNet34)
 - **Base Model**: ResNet34 (pre-trained on ImageNet)
 - **Transfer Learning**: Fine-tuned on PlantVillage dataset
 - **Input Size**: 224 × 224 pixels
