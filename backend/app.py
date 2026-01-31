@@ -49,6 +49,8 @@ logger.info(f"Using device: {device}")
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(os.path.dirname(BASE_DIR), 'model')
+# NEW (Correct)
+# MODEL_DIR = os.path.join(BASE_DIR, 'model')
 CLASS_INDICES_PATH = os.path.join(BASE_DIR, 'class_indices.json')
 DISEASE_INFO_PATH = os.path.join(BASE_DIR, 'disease_info.json')
 

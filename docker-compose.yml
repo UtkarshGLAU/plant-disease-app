@@ -13,7 +13,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       # Mount model directory (read-only for security)
-      - ./model:/app/model:ro
+      - /data/plantguard/model:/model:ro
       # Persist uploads if needed
       - backend-uploads:/app/uploads
     networks:
