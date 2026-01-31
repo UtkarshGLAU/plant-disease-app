@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Backend - Flask API with PyTorch
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: plantguard-backend
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount model directory (read-only for security)
+      - ./model:/app/model:ro
+      # Persist uploads if needed
+      - backend-uploads:/app/uploads
+    networks:
+      - plantguard-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Frontend - React + Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: plantguard-frontend
+    restart: unless-stopped
+    ports:
+      # Unique port - change if 3847 is taken on your server
+      - "3847:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - plantguard-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  plantguard-network:
+    driver: bridge
+
+volumes:
+  backend-uploads:
