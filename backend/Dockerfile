@@ -1,5 +1,5 @@
-# Backend Dockerfile - Flask + PyTorch
-FROM python:3.11-slim
+# FIXED: Using 'bullseye' to prevent the apt-get crash in LXC
+FROM python:3.11-slim-bullseye
 
 # Set working directory
 WORKDIR /app
@@ -39,5 +39,5 @@ ENV PYTHONUNBUFFERED=1
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Run with gunicorn for production (2 workers, 5 min timeout for model loading)
+# Run with gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "300", "--preload", "app:app"]
