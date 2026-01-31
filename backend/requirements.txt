@@ -1,8 +1,20 @@
-Flask==2.3.3
+# Plant Disease Detection API - Requirements
+# Python 3.8+
+
+# Flask and Web
+flask==3.0.0
 flask-cors==4.0.0
-torch==2.9.1+cpu
-torchvision==0.24.1+cpu
+werkzeug==3.0.1
+
+# PyTorch (CPU version - for GPU use torch with CUDA)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Image Processing
 Pillow>=10.0.0
+
+# Utilities
 numpy>=1.24.0
-werkzeug>=2.3.0
---extra-index-url https://download.pytorch.org/whl/cpu
+
+# Optional: For production deployment
+gunicorn>=21.0.0
