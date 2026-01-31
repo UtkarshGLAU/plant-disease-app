@@ -72,13 +72,13 @@ MODEL_REGISTRY = {
     #     "input_size": 224,
     #     "is_default": True
     # },
-    "Archit":{
-        "file": "Archit.pth",
+    "Resnet34":{
+        "file": "PlantCareModelV2.0.pth",
         "architecture": "resnet34",
-        "name": "Archit Model",
+        "name": "ResNet-34 Custom",
         "description": "Custom trained model by Archit using ResNet-34 architecture",
-        "accuracy": "99.5%",
-        "input_size": 224,
+        "accuracy": "98.420%",
+        "input_size": 128,
         "is_default": True
     },
     # Add more models below as needed:
