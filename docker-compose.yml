@@ -1,6 +1,26 @@
 version: '3.8'
 
 services:
+  # MongoDB - Model Registry Database
+  mongodb:
+    image: mongo:7
+    container_name: plantguard-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=plantguard
+      - MONGO_INITDB_ROOT_PASSWORD=plantguard_secret_2024
+      - MONGO_INITDB_DATABASE=plantguard
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - plantguard-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
   # Backend - Flask API with PyTorch
   backend:
     build:
@@ -11,13 +31,20 @@ services:
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      # MongoDB connection
+      - MONGO_URI=mongodb://plantguard:plantguard_secret_2024@mongodb:27017/plantguard?authSource=admin
+      - MONGO_DB=plantguard
+      - MONGO_COLLECTION=models
     volumes:
       # Mount model directory (read-only for security)
-      - /data/plantguard/model:/model:ro
+      - /data/plantguard/model:/app/model:ro
       # Persist uploads if needed
       - backend-uploads:/app/uploads
     networks:
       - plantguard-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -52,3 +79,4 @@ networks:
 
 volumes:
   backend-uploads:
+  mongodb-data:
