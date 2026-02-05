@@ -18,6 +18,22 @@ from datetime import datetime
 import logging
 from typing import Dict, Any, Optional
 
+# Load .env file (for local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✓ Loaded .env file")
+except ImportError:
+    print("⚠️ python-dotenv not installed - using system environment variables only")
+
+# MongoDB support (optional)
+try:
+    from pymongo import MongoClient
+    MONGODB_AVAILABLE = True
+except ImportError:
+    MONGODB_AVAILABLE = False
+    print("⚠️ pymongo not installed - using hardcoded model registry only")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,63 +71,110 @@ CLASS_INDICES_PATH = os.path.join(BASE_DIR, 'class_indices.json')
 DISEASE_INFO_PATH = os.path.join(BASE_DIR, 'disease_info.json')
 
 # ============================================
-# MODEL REGISTRY - Add your models here!
+# MONGODB CONFIGURATION
 # ============================================
-# Each model entry contains:
-# - file: filename in the model/ directory
-# - architecture: model architecture type
-# - description: human-readable description
-# - accuracy: model accuracy (for display)
-# - input_size: expected input dimensions
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017')
+MONGO_DB = os.environ.get('MONGO_DB', 'plantguard')
+MONGO_COLLECTION = os.environ.get('MONGO_COLLECTION', 'models')
 
-MODEL_REGISTRY = {
-    # "resnet34": {
-    #     "file": "plantDisease-resnet34.pth",
-    #     "architecture": "resnet34",
-    #     "name": "ResNet-34",
-    #     "description": "Fast and accurate model using ResNet-34 architecture",
-    #     "accuracy": "95.2%",
-    #     "input_size": 224,
-    #     "is_default": True
-    # },
+# MongoDB connection (lazy initialization)
+mongo_client = None
+mongo_db = None
+mongo_collection = None
+
+def get_mongo_collection():
+    """Get MongoDB collection with lazy initialization"""
+    global mongo_client, mongo_db, mongo_collection
+    
+    if not MONGODB_AVAILABLE:
+        return None
+    
+    if mongo_collection is not None:
+        return mongo_collection
+    
+    try:
+        mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
+        # Test connection
+        mongo_client.server_info()
+        mongo_db = mongo_client[MONGO_DB]
+        mongo_collection = mongo_db[MONGO_COLLECTION]
+        logger.info(f"✓ Connected to MongoDB: {MONGO_DB}.{MONGO_COLLECTION}")
+        return mongo_collection
+    except Exception as e:
+        logger.warning(f"⚠️ MongoDB connection failed: {e}")
+        logger.warning("⚠️ Using hardcoded MODEL_REGISTRY as fallback")
+        return None
+
+
+# ============================================
+# HARDCODED MODEL REGISTRY (FALLBACK)
+# ============================================
+# This is used if MongoDB is unavailable
+# Keep this updated as a backup!
+
+HARDCODED_MODEL_REGISTRY = {
     "Resnet34":{
         "file": "PlantCareModelV2.0.pth",
         "architecture": "resnet34",
-        "name": "ResNet-34 Custom",
+        "name": "ResNet-34 V1.0",
         "description": "Custom trained model by Archit using ResNet-34 architecture",
         "accuracy": "98.420%",
         "input_size": 128,
         "is_default": True
     },
-    # Add more models below as needed:
-    # "resnet50": {
-    #     "file": "plantDisease-resnet50.pth",
-    #     "architecture": "resnet50",
-    #     "name": "ResNet-50",
-    #     "description": "Deeper network for higher accuracy",
-    #     "accuracy": "96.5%",
-    #     "input_size": 224,
-    #     "is_default": False
-    # },
-    # "efficientnet": {
-    #     "file": "plantDisease-efficientnet.pth",
-    #     "architecture": "efficientnet_b0",
-    #     "name": "EfficientNet-B0",
-    #     "description": "Efficient model with excellent accuracy",
-    #     "accuracy": "97.1%",
-    #     "input_size": 224,
-    #     "is_default": False
-    # },
-    # "vgg16": {
-    #     "file": "plantDisease-vgg16.pth",
-    #     "architecture": "vgg16",
-    #     "name": "VGG-16",
-    #     "description": "Classic architecture, highly reliable",
-    #     "accuracy": "94.8%",
-    #     "input_size": 224,
-    #     "is_default": False
-    # },
+    "Resnet34_Adv":{
+        "file": "plantDisease-resnet34adv.pth",
+        "architecture": "resnet34",
+        "name": "ResNet-34 V2.0",
+        "description": "Custom trained model by Archit using ResNet-34 architecture",
+        "accuracy": "98.420%",
+        "input_size": 128,
+        "is_default": False
+    },
 }
+
+
+def get_model_registry() -> Dict[str, Any]:
+    """
+    Get model registry from MongoDB, fallback to hardcoded if unavailable.
+    Returns dict of model_id -> model_config
+    """
+    collection = get_mongo_collection()
+    
+    if collection is None:
+        logger.info("Using hardcoded MODEL_REGISTRY")
+        return HARDCODED_MODEL_REGISTRY.copy()
+    
+    try:
+        # Fetch all models from MongoDB
+        models = {}
+        for doc in collection.find({"enabled": {"$ne": False}}):
+            model_id = doc.get("model_id") or doc.get("_id")
+            if isinstance(model_id, str):
+                models[model_id] = {
+                    "file": doc.get("file"),
+                    "architecture": doc.get("architecture", "resnet34"),
+                    "name": doc.get("name", model_id),
+                    "description": doc.get("description", ""),
+                    "accuracy": doc.get("accuracy", "N/A"),
+                    "input_size": doc.get("input_size", 128),
+                    "is_default": doc.get("is_default", False)
+                }
+        
+        if models:
+            logger.info(f"Loaded {len(models)} models from MongoDB")
+            return models
+        else:
+            logger.warning("MongoDB returned no models, using hardcoded fallback")
+            return HARDCODED_MODEL_REGISTRY.copy()
+            
+    except Exception as e:
+        logger.error(f"Error fetching from MongoDB: {e}")
+        return HARDCODED_MODEL_REGISTRY.copy()
+
+
+# Initialize MODEL_REGISTRY from MongoDB or fallback
+MODEL_REGISTRY = get_model_registry()
 
 # Load class indices
 try:
@@ -454,6 +517,149 @@ def get_model_info(model_id):
         "is_loaded": is_loaded,
         "status": "ready" if is_loaded else "not_found",
         "file": config["file"]
+    })
+
+
+# ============================================
+# MODEL MANAGEMENT API (MongoDB)
+# ============================================
+
+@app.route('/admin/models', methods=['POST'])
+def add_model():
+    """Add a new model to MongoDB registry"""
+    collection = get_mongo_collection()
+    if collection is None:
+        return jsonify({"success": False, "error": "MongoDB not available"}), 503
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No JSON data provided"}), 400
+    
+    required_fields = ["model_id", "file", "architecture", "name"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+    
+    model_doc = {
+        "model_id": data["model_id"],
+        "file": data["file"],
+        "architecture": data.get("architecture", "resnet34"),
+        "name": data["name"],
+        "description": data.get("description", ""),
+        "accuracy": data.get("accuracy", "N/A"),
+        "input_size": data.get("input_size", 128),
+        "is_default": data.get("is_default", False),
+        "enabled": True,
+        "created_at": datetime.now().isoformat()
+    }
+    
+    try:
+        # Upsert (update if exists, insert if not)
+        collection.update_one(
+            {"model_id": data["model_id"]},
+            {"$set": model_doc},
+            upsert=True
+        )
+        return jsonify({"success": True, "message": f"Model '{data['model_id']}' added/updated", "model": model_doc})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/admin/models/<model_id>', methods=['DELETE'])
+def delete_model(model_id):
+    """Delete (disable) a model from MongoDB registry"""
+    collection = get_mongo_collection()
+    if collection is None:
+        return jsonify({"success": False, "error": "MongoDB not available"}), 503
+    
+    try:
+        # Soft delete - just disable it
+        result = collection.update_one(
+            {"model_id": model_id},
+            {"$set": {"enabled": False, "deleted_at": datetime.now().isoformat()}}
+        )
+        
+        if result.modified_count > 0:
+            return jsonify({"success": True, "message": f"Model '{model_id}' disabled"})
+        else:
+            return jsonify({"success": False, "error": f"Model '{model_id}' not found"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/admin/models/<model_id>', methods=['PUT'])
+def update_model(model_id):
+    """Update a model in MongoDB registry"""
+    collection = get_mongo_collection()
+    if collection is None:
+        return jsonify({"success": False, "error": "MongoDB not available"}), 503
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No JSON data provided"}), 400
+    
+    # Only allow updating certain fields
+    allowed_fields = ["file", "architecture", "name", "description", "accuracy", "input_size", "is_default", "enabled"]
+    update_data = {k: v for k, v in data.items() if k in allowed_fields}
+    update_data["updated_at"] = datetime.now().isoformat()
+    
+    try:
+        result = collection.update_one(
+            {"model_id": model_id},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count > 0:
+            return jsonify({"success": True, "message": f"Model '{model_id}' updated"})
+        else:
+            return jsonify({"success": False, "error": f"Model '{model_id}' not found or no changes"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/admin/reload', methods=['POST'])
+def reload_models():
+    """Reload all models from MongoDB (hot reload without restart)"""
+    global MODEL_REGISTRY, loaded_models, default_model_id
+    
+    try:
+        # Refresh registry from MongoDB
+        MODEL_REGISTRY = get_model_registry()
+        
+        # Unload all current models
+        loaded_models.clear()
+        default_model_id = None
+        
+        # Reload models
+        initialize_models()
+        
+        return jsonify({
+            "success": True,
+            "message": "Models reloaded successfully",
+            "models_loaded": len(loaded_models),
+            "registry_count": len(MODEL_REGISTRY),
+            "default_model": default_model_id
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/admin/status')
+def admin_status():
+    """Get admin status including MongoDB connection"""
+    collection = get_mongo_collection()
+    
+    return jsonify({
+        "mongodb_available": MONGODB_AVAILABLE,
+        "mongodb_connected": collection is not None,
+        "mongo_uri": MONGO_URI.split('@')[-1] if '@' in MONGO_URI else MONGO_URI,  # Hide credentials
+        "mongo_db": MONGO_DB,
+        "mongo_collection": MONGO_COLLECTION,
+        "using_fallback": collection is None,
+        "registry_source": "mongodb" if collection else "hardcoded",
+        "models_in_registry": len(MODEL_REGISTRY),
+        "models_loaded": len(loaded_models),
+        "default_model": default_model_id
     })
 
 
