@@ -18,14 +18,6 @@ from datetime import datetime
 import logging
 from typing import Dict, Any, Optional
 
-# Load .env file (for local development)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    print("✓ Loaded .env file")
-except ImportError:
-    print("⚠️ python-dotenv not installed - using system environment variables only")
-
 # MongoDB support (optional)
 try:
     from pymongo import MongoClient
@@ -73,7 +65,10 @@ DISEASE_INFO_PATH = os.path.join(BASE_DIR, 'disease_info.json')
 # ============================================
 # MONGODB CONFIGURATION
 # ============================================
-MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017')
+# Default uses docker-compose service name 'mongodb'
+# In Docker: mongodb://user:pass@mongodb:27017/db
+# Locally: set MONGO_URI env var or it will fallback to hardcoded registry
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://192.168.29.224:27017/')
 MONGO_DB = os.environ.get('MONGO_DB', 'plantguard')
 MONGO_COLLECTION = os.environ.get('MONGO_COLLECTION', 'models')
 
