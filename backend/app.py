@@ -56,9 +56,20 @@ logger.info(f"Using device: {device}")
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(os.path.dirname(BASE_DIR), 'model')
-# NEW (Correct)
-# MODEL_DIR = os.path.join(BASE_DIR, 'model')
+# In Docker: models are at /app/model/ (same level as app.py)
+# Locally: models are at ../model/ (one level up from backend/)
+# Use environment variable to override, or check both paths
+MODEL_DIR = os.environ.get('MODEL_DIR', os.path.join(BASE_DIR, 'model'))
+
+# Fallback to parent directory if model folder doesn't exist (for local dev)
+if not os.path.exists(MODEL_DIR):
+    MODEL_DIR = os.path.join(os.path.dirname(BASE_DIR), 'model')
+
+logger.info(f"Model directory: {MODEL_DIR}")
+logger.info(f"Model directory exists: {os.path.exists(MODEL_DIR)}")
+if os.path.exists(MODEL_DIR):
+    logger.info(f"Model files found: {os.listdir(MODEL_DIR)}")
+    
 CLASS_INDICES_PATH = os.path.join(BASE_DIR, 'class_indices.json')
 DISEASE_INFO_PATH = os.path.join(BASE_DIR, 'disease_info.json')
 
